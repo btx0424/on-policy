@@ -113,10 +113,8 @@ def main(args):
     }
 
     # run experiments
-    if all_args.share_policy:
-        from onpolicy.runner.shared.mpe_runner import MPERunner as Runner
-    else:
-        from onpolicy.runner.separated.mpe_runner import MPERunner as Runner
+    assert all_args.share_policy
+    from onpolicy.runner.shared.drone_runner import DroneRunner as Runner
 
     runner = Runner(config)
     runner.run()

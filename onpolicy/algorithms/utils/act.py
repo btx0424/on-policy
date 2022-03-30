@@ -2,6 +2,7 @@ from .distributions import Bernoulli, Categorical, DiagGaussian
 import numpy as np
 import torch
 import torch.nn as nn
+from gym.spaces import Box, Discrete
 
 class ACTLayer(nn.Module):
     """
@@ -16,10 +17,10 @@ class ACTLayer(nn.Module):
         self.mixed_action = False
         self.multi_discrete = False
 
-        if action_space.__class__.__name__ == "Discrete":
+        if isinstance(action_space, Discrete):
             action_dim = action_space.n
             self.action_out = Categorical(inputs_dim, action_dim, use_orthogonal, gain)
-        elif action_space.__class__.__name__ == "Box":
+        elif isinstance(action_space, Box):
             action_dim = action_space.shape[0]
             self.action_out = DiagGaussian(inputs_dim, action_dim, use_orthogonal, gain)
         elif action_space.__class__.__name__ == "MultiBinary":
