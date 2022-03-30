@@ -12,6 +12,7 @@ This repository is heavily based on https://github.com/ikostrikov/pytorch-a2c-pp
 - [StarCraftII (SMAC)](https://github.com/oxwhirl/smac)
 - [Hanabi](https://github.com/deepmind/hanabi-learning-environment)
 - [Multiagent Particle-World Environments (MPEs)](https://github.com/openai/multiagent-particle-envs)
+- [Google Research Football](https://github.com/google-research/football)
 
 ## 1. Usage
 **WARNING: by default all experiments assume a shared policy by all agents i.e. there is one neural network shared by all agents**
