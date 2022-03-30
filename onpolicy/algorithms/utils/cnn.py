@@ -12,9 +12,9 @@ class CNNLayer(nn.Module):
     def __init__(self, obs_shape, hidden_size, use_orthogonal, use_ReLU, kernel_size=3, stride=1):
         super(CNNLayer, self).__init__()
 
-        active_func = [nn.Tanh(), nn.ReLU()][use_ReLU]
+        active_func = [nn.Tanh(), nn.LeakyReLU()][use_ReLU]
         init_method = [nn.init.xavier_uniform_, nn.init.orthogonal_][use_orthogonal]
-        gain = nn.init.calculate_gain(['tanh', 'relu'][use_ReLU])
+        gain = nn.init.calculate_gain(['tanh', 'leaky_relu'][use_ReLU])
 
         def init_(m):
             return init(m, init_method, lambda x: nn.init.constant_(x, 0), gain=gain)

@@ -1,4 +1,5 @@
 from .distributions import Bernoulli, Categorical, DiagGaussian
+import numpy as np
 import torch
 import torch.nn as nn
 
@@ -37,8 +38,10 @@ class ACTLayer(nn.Module):
             discrete_dim = action_space[1].n
             self.action_outs = nn.ModuleList([DiagGaussian(inputs_dim, continous_dim, use_orthogonal, gain), Categorical(
                 inputs_dim, discrete_dim, use_orthogonal, gain)])
-    
-    def forward(self, x, available_actions=None, deterministic=False):
+
+        self.epsilon = 1.
+
+    def forward(self, x, available_actions=None, deterministic=False, epsilon=None):
         """
         Compute actions and action logprobs from given input.
         :param x: (torch.Tensor) input to network.
@@ -77,7 +80,12 @@ class ACTLayer(nn.Module):
         
         else:
             action_logits = self.action_out(x, available_actions)
-            actions = action_logits.mode() if deterministic else action_logits.sample() 
+            if deterministic:
+                actions = action_logits.mode() 
+            else:
+                actions = action_logits.sample()
+                if np.random.rand() < epsilon : 
+                    actions = torch.randint_like(actions, low=0, high=19)
             action_log_probs = action_logits.log_probs(actions)
         
         return actions, action_log_probs

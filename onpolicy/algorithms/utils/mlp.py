@@ -8,9 +8,9 @@ class MLPLayer(nn.Module):
         super(MLPLayer, self).__init__()
         self._layer_N = layer_N
 
-        active_func = [nn.Tanh(), nn.ReLU()][use_ReLU]
+        active_func = [nn.Tanh(), nn.LeakyReLU()][use_ReLU]
         init_method = [nn.init.xavier_uniform_, nn.init.orthogonal_][use_orthogonal]
-        gain = nn.init.calculate_gain(['tanh', 'relu'][use_ReLU])
+        gain = nn.init.calculate_gain(['tanh', 'leaky_relu'][use_ReLU])
 
         def init_(m):
             return init(m, init_method, lambda x: nn.init.constant_(x, 0), gain=gain)

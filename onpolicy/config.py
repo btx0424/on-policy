@@ -84,7 +84,8 @@ def get_config():
             RMSprop optimizer epsilon (default: 1e-5)
         --weight_decay <float>
             coefficience of weight decay (default: 0)
-    
+        --eps_start
+
     PPO parameters:
         --ppo_epoch <int>
             number of ppo epochs (default: 15)
@@ -176,7 +177,7 @@ def get_config():
     parser.add_argument("--num_env_steps", type=int, default=10e6,
                         help='Number of environment steps to train (default: 10e6)')
     parser.add_argument("--user_name", type=str, default='marl',help="[for wandb usage], to specify user's name for simply collecting training data.")
-    parser.add_argument("--use_wandb", action='store_false', default=True, help="[for wandb usage], by default True, will log date to wandb server. or else will use tensorboard to log data.")
+    parser.add_argument("--use_wandb", action='store_true', default=False, help="[for wandb usage], by default True, will log date to wandb server. or else will use tensorboard to log data.")
 
     # env parameters
     parser.add_argument("--env_name", type=str, default='StarCraft2', help="specify the name of environment")
@@ -203,13 +204,15 @@ def get_config():
     parser.add_argument("--use_ReLU", action='store_false',
                         default=True, help="Whether to use ReLU")
     parser.add_argument("--use_popart", action='store_true', default=False, help="by default False, use PopArt to normalize rewards.")
-    parser.add_argument("--use_valuenorm", action='store_false', default=True, help="by default True, use running mean and std to normalize rewards.")
+    parser.add_argument("--use_valuenorm", action='store_true', default=False, help="by default False, use running mean and std to normalize rewards.")
     parser.add_argument("--use_feature_normalization", action='store_false',
                         default=True, help="Whether to apply layernorm to the inputs")
     parser.add_argument("--use_orthogonal", action='store_false', default=True,
                         help="Whether to use Orthogonal initialization for weights and 0 initialization for biases")
     parser.add_argument("--gain", type=float, default=0.01,
                         help="The gain # of last action layer")
+    parser.add_argument("--eps_start", type=float, default=1.0)
+    parser.add_argument("--min_eps", type=float, default=0.)
 
     # recurrent parameters
     parser.add_argument("--use_naive_recurrent_policy", action='store_true',

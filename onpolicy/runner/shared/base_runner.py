@@ -1,8 +1,9 @@
+from argparse import Namespace
 import wandb
 import os
 import numpy as np
 import torch
-from tensorboardX import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 from onpolicy.utils.shared_buffer import SharedReplayBuffer
 
 def _t2n(x):
@@ -16,7 +17,7 @@ class Runner(object):
     """
     def __init__(self, config):
 
-        self.all_args = config['all_args']
+        self.all_args: Namespace = config['all_args']
         self.envs = config['envs']
         self.eval_envs = config['eval_envs']
         self.device = config['device']
@@ -50,22 +51,26 @@ class Runner(object):
         # dir
         self.model_dir = self.all_args.model_dir
 
-        if self.use_wandb:
-            self.save_dir = str(wandb.run.dir)
-            self.run_dir = str(wandb.run.dir)
+        if not self.all_args.eval_only:
+            if self.use_wandb:
+                self.save_dir = str(wandb.run.dir)
+                self.run_dir = str(wandb.run.dir)
+            else:
+                self.run_dir = config["run_dir"]
+                self.log_dir = str(self.run_dir / 'logs')
+                if not os.path.exists(self.log_dir):
+                    os.makedirs(self.log_dir)
+                self.writter = SummaryWriter(self.log_dir)
+                self.writter.add_text("args", str(self.all_args))
+                self.save_dir = str(self.run_dir / 'models')
+                if not os.path.exists(self.save_dir):
+                    os.makedirs(self.save_dir)
         else:
-            self.run_dir = config["run_dir"]
-            self.log_dir = str(self.run_dir / 'logs')
-            if not os.path.exists(self.log_dir):
-                os.makedirs(self.log_dir)
-            self.writter = SummaryWriter(self.log_dir)
-            self.save_dir = str(self.run_dir / 'models')
-            if not os.path.exists(self.save_dir):
-                os.makedirs(self.save_dir)
+            self.envs = self.eval_envs
 
         from onpolicy.algorithms.r_mappo.r_mappo import R_MAPPO as TrainAlgo
         from onpolicy.algorithms.r_mappo.algorithm.rMAPPOPolicy import R_MAPPOPolicy as Policy
-
+        
         share_observation_space = self.envs.share_observation_space[0] if self.use_centralized_V else self.envs.observation_space[0]
 
         # policy network
@@ -124,42 +129,30 @@ class Runner(object):
         self.buffer.after_update()
         return train_infos
 
-    def save(self):
+    def save(self, num_steps):
         """Save policy's actor and critic networks."""
         policy_actor = self.trainer.policy.actor
-        torch.save(policy_actor.state_dict(), str(self.save_dir) + "/actor.pt")
+        torch.save(policy_actor.state_dict(), str(self.save_dir) + f"/actor_{num_steps}.pt")
         policy_critic = self.trainer.policy.critic
-        torch.save(policy_critic.state_dict(), str(self.save_dir) + "/critic.pt")
+        torch.save(policy_critic.state_dict(), str(self.save_dir) + f"/critic_{num_steps}.pt")
 
     def restore(self):
         """Restore policy's networks from a saved model."""
+        print("restore pretrained model")
         policy_actor_state_dict = torch.load(str(self.model_dir) + '/actor.pt')
         self.policy.actor.load_state_dict(policy_actor_state_dict)
         if not self.all_args.use_render:
             policy_critic_state_dict = torch.load(str(self.model_dir) + '/critic.pt')
             self.policy.critic.load_state_dict(policy_critic_state_dict)
  
-    def log_train(self, train_infos, total_num_steps):
+    def log(self, infos, total_num_steps):
         """
         Log training info.
         :param train_infos: (dict) information about training update.
         :param total_num_steps: (int) total number of training env steps.
         """
-        for k, v in train_infos.items():
+        for k, v in infos.items():
             if self.use_wandb:
                 wandb.log({k: v}, step=total_num_steps)
             else:
-                self.writter.add_scalars(k, {k: v}, total_num_steps)
-
-    def log_env(self, env_infos, total_num_steps):
-        """
-        Log env info.
-        :param env_infos: (dict) information about env state.
-        :param total_num_steps: (int) total number of training env steps.
-        """
-        for k, v in env_infos.items():
-            if len(v)>0:
-                if self.use_wandb:
-                    wandb.log({k: np.mean(v)}, step=total_num_steps)
-                else:
-                    self.writter.add_scalars(k, {k: np.mean(v)}, total_num_steps)
+                self.writter.add_scalar(k, v, total_num_steps)

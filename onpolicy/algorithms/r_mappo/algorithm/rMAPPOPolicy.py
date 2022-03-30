@@ -1,7 +1,9 @@
 import torch
+import torch.nn as nn
 from onpolicy.algorithms.r_mappo.algorithm.r_actor_critic import R_Actor, R_Critic
 from onpolicy.utils.util import update_linear_schedule
-
+from onpolicy.utils.util import get_shape_from_obs_space
+from typing import Optional, Tuple
 
 class R_MAPPOPolicy:
     """
@@ -35,6 +37,9 @@ class R_MAPPOPolicy:
                                                  lr=self.critic_lr,
                                                  eps=self.opti_eps,
                                                  weight_decay=self.weight_decay)
+        # self.RND = RndNetwork(obs_shape=get_shape_from_obs_space(obs_space), hidden_size_list=[64, 64])
+        self.epsilon = args.eps_start
+        self.min_eps = args.min_eps
 
     def lr_decay(self, episode, episodes):
         """
@@ -44,6 +49,10 @@ class R_MAPPOPolicy:
         """
         update_linear_schedule(self.actor_optimizer, episode, episodes, self.lr)
         update_linear_schedule(self.critic_optimizer, episode, episodes, self.critic_lr)
+
+    def eps_decay(self, episode, episodes):
+        self.epsilon *= 0.95
+        self.epsilon = max(self.epsilon, self.min_eps)
 
     def get_actions(self, cent_obs, obs, rnn_states_actor, rnn_states_critic, masks, available_actions=None,
                     deterministic=False):
@@ -68,7 +77,8 @@ class R_MAPPOPolicy:
                                                                  rnn_states_actor,
                                                                  masks,
                                                                  available_actions,
-                                                                 deterministic)
+                                                                 deterministic,
+                                                                 self.epsilon)
 
         values, rnn_states_critic = self.critic(cent_obs, rnn_states_critic, masks)
         return values, actions, action_log_probs, rnn_states_actor, rnn_states_critic
@@ -125,3 +135,47 @@ class R_MAPPOPolicy:
         """
         actions, _, rnn_states_actor = self.actor(obs, rnn_states_actor, masks, available_actions, deterministic)
         return actions, rnn_states_actor
+
+class RndNetwork(nn.Module):
+
+    def __init__(self, obs_shape, hidden_size_list) -> None:
+        super().__init__()
+        if isinstance(obs_shape, int) or len(obs_shape) == 1:
+            self.target = FCEncoder(obs_shape)
+            self.predictor = FCEncoder(obs_shape)
+        elif len(obs_shape) == 3:
+            self.target = ConvEncoder(obs_shape)
+            self.predictor = ConvEncoder(obs_shape)
+        else: raise NotImplementedError
+    
+        for param in self.target.parameters():
+            param.requires_grad = False
+
+    def forward(self, obs: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        predict_feature = self.predictor(obs)
+        with torch.no_grad():
+            target_feature = self.target(obs)
+        return predict_feature, target_feature
+
+class FCEncoder(nn.Module):
+    def __init__(self, obs_shape) -> None:
+        super().__init__()
+        self.fc = nn.Sequential(
+            nn.Linear(obs_shape, 64), nn.LeakyReLU(),
+            nn.Linear(64, 64), nn.LeakyReLU(),
+            nn.Linear(64, 64)
+        )
+    def forward(self, x): return self.fc(x)
+
+class ConvEncoder(nn.Module):
+    def __init__(self, obs_shape) -> None:
+        super().__init__()
+        feature_dim = 36*48*32/16
+        self.cnn = nn.Sequential(
+            nn.Conv2d(4, 16, 3, 2, 1), nn.LeakyReLU(),
+            nn.Conv2d(16, 32, 3, 2, 1), nn.LeakyReLU(),
+        )
+        self.fc = nn.Linear(feature_dim, 64)
+    
+    def forward(self, x):
+        return self.fc(torch.flatten(self.cnn(x)))
