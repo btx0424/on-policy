@@ -28,7 +28,6 @@ class DroneRunner(Runner):
                 # Sample actions
                 values, actions, action_log_probs, rnn_states, rnn_states_critic = self.collect(step)
                 # Obser reward and next obs
-                print(actions)
                 obs, rewards, dones, infos = self.envs.step(actions)
                         
                 data = obs, rewards, dones, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic
@@ -51,7 +50,7 @@ class DroneRunner(Runner):
             if episode % self.log_interval == 0:
                 end = time.time()
                 print("\n Scenario {}-{} Algo {} updates {}/{} episodes, total num timesteps {}/{}, FPS {}, eps {}.\n"
-                        .format(self.all_args.scenario,
+                        .format(self.all_args.scenario_name,
                                 self.num_agents,
                                 self.algorithm_name,
                                 episode,
