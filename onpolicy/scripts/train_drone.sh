@@ -1,7 +1,7 @@
 #!/bin/sh
 env="drone"
-scenario="leader-follower"  # simple_speaker_listener # simple_reference
-num_agents=3
+scenario="navigation"  # simple_speaker_listener # simple_reference
+num_agents=2
 algo="rmappo"
 exp="check"
 seed_max=1
@@ -14,7 +14,7 @@ do
         --use_popart --env_name ${env} --algorithm_name ${algo} \
         --experiment_name ${exp} --scenario_name ${scenario} --num_agents ${num_agents} \
         --num_landmarks ${num_landmarks} --seed ${seed} --n_training_threads 1 \
-        --n_rollout_threads 24 --num_mini_batch 1 --episode_length 1200 \
+        --n_rollout_threads 24 --num_mini_batch 1 --episode_length 600 \
         --num_env_steps 20000000 --ppo_epoch 10 --use_ReLU --gain 0.01 --lr 5e-4 \
         --critic_lr 5e-4 --eps_start 0
 done

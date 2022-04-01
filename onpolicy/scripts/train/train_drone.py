@@ -13,7 +13,7 @@ def make_env(all_args, eval=False):
     def get_env_fn(rank):
         def init_env():
             env_name = all_args.scenario_name
-            env = make_drone_env(env_name, all_args)
+            env = make_drone_env(env_name, vars(all_args))
             env.seed(all_args.seed + rank * 1000)
             return env
         return init_env
