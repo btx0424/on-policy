@@ -1,3 +1,4 @@
+from cmath import inf
 import time
 import numpy as np
 import torch
@@ -24,6 +25,8 @@ class DroneRunner(Runner):
 
             self.trainer.policy.eps_decay(episode, episodes)
 
+            episode_count = 0
+            success = 0
             for step in range(self.episode_length):
                 # Sample actions
                 values, actions, action_log_probs, rnn_states, rnn_states_critic = self.collect(step)
@@ -34,7 +37,10 @@ class DroneRunner(Runner):
 
                 # insert data into buffer
                 self.insert(data)
-
+                episode_count += dones.sum() / self.num_agents
+                if dones.all():
+                    for info in infos:
+                        success += np.sum([_["success"] for _ in info])
             # compute return and update network
             self.compute()
             train_infos = self.train()
@@ -61,8 +67,9 @@ class DroneRunner(Runner):
                                 self.policy.epsilon))
 
                 train_infos["average_episode_rewards"] = np.mean(self.buffer.rewards) * self.episode_length
-                print("average episode rewards is {}"
-                    .format(train_infos["average_episode_rewards"]))
+                train_infos["success_rate"] = success / episode_count
+                print("average episode rewards is {}, success/episodes: {}/{}"
+                    .format(train_infos["average_episode_rewards"], success, episode_count))
                 
                 self.log(train_infos, total_num_steps)
 
@@ -112,57 +119,6 @@ class DroneRunner(Runner):
         share_obs = obs
 
         self.buffer.insert(share_obs, obs, rnn_states, rnn_states_critic, actions, action_log_probs, values, rewards, masks)
-
-    # @torch.no_grad()
-    # def eval(self, total_num_steps):
-
-    #     eval_episode_rewards = []
-    #     eval_obs = self.eval_envs.reset()
-
-    #     n_iters = self.eval_episodes // self.n_eval_rollout_threads
-    #     games_count, win, loss = 0, 0, 0
-
-    #     for i in range(n_iters):
-    #         eval_rnn_states = np.zeros((self.n_eval_rollout_threads, *self.buffer.rnn_states.shape[2:]), dtype=np.float32)
-    #         eval_masks = np.ones((self.n_eval_rollout_threads, self.num_agents, 1), dtype=np.float32)
-
-    #         for eval_step in range(401):
-    #             self.trainer.prep_rollout()
-    #             eval_action, eval_rnn_states = self.trainer.policy.act(np.concatenate(eval_obs),
-    #                                                                    np.concatenate(eval_rnn_states),
-    #                                                                    np.concatenate(eval_masks),
-    #                                                                    deterministic=True)
-    #             eval_actions = np.array(np.split(_t2n(eval_action), self.n_eval_rollout_threads))
-
-    #             eval_rnn_states = np.array(np.split(_t2n(eval_rnn_states), self.n_eval_rollout_threads))
-
-    #             eval_actions_env = np.squeeze(eval_actions)
-
-    #             # Observe reward and next obs
-    #             eval_obs, eval_rewards, eval_dones, eval_infos = self.eval_envs.step(eval_actions_env)
-    #             games_count += eval_dones.sum() // self.num_agents
-    #             for i, info in enumerate(eval_infos):
-    #                 if info['score_reward'] > 0: win += 1
-    #                 elif info['score_reward'] < 0: loss += 1
-                
-    #             eval_episode_rewards.append(eval_rewards)
-
-    #             eval_rnn_states[eval_dones == True] = np.zeros(
-    #                 ((eval_dones == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
-    #             eval_masks = np.ones((self.n_eval_rollout_threads, self.num_agents, 1), dtype=np.float32)
-    #             eval_masks[eval_dones == True] = np.zeros(((eval_dones == True).sum(), 1), dtype=np.float32)
-
-    #     mean_episode_rewards = np.array(eval_episode_rewards).sum(axis=0).mean()    # sum over steps and average over threads
-
-    #     eval_env_infos = {
-    #         'eval_average_episode_rewards': mean_episode_rewards,
-    #         'eval_win_rate': win/games_count,
-    #     }
-
-    #     print("eval win/loss/total: {}/{}/{}, win rate: {}"
-    #         .format(win, loss, games_count, win/games_count))
-
-    #     if not self.all_args.eval_only: self.log(eval_env_infos, total_num_steps)
     
     @torch.no_grad()
     def eval(self, total_num_steps):
@@ -170,7 +126,9 @@ class DroneRunner(Runner):
         assert self.eval_episodes % self.n_eval_rollout_threads == 0
         n_iters = self.eval_episodes // self.n_eval_rollout_threads
         
-        win, loss = 0, 0
+        eval_reward = 0
+        eval_success = 0
+
         from tqdm import tqdm
         for i in tqdm(range(n_iters)):
             eval_rnn_states = np.zeros((self.n_eval_rollout_threads, *self.buffer.rnn_states.shape[2:]), dtype=np.float32)
@@ -180,7 +138,7 @@ class DroneRunner(Runner):
             eval_episode_rewards = []
             eval_obs = self.eval_envs.reset()
 
-            for eval_step in range(401):
+            for eval_step in range(1200):
                 self.trainer.prep_rollout()
                 eval_action, eval_rnn_states = self.trainer.policy.act(
                     np.concatenate(eval_obs),
@@ -192,10 +150,8 @@ class DroneRunner(Runner):
 
                 eval_rnn_states = np.array(np.split(_t2n(eval_rnn_states), self.n_eval_rollout_threads))
 
-                eval_actions_env = np.squeeze(eval_actions)
-
                 # Observe reward and next obs
-                eval_obs, eval_rewards, eval_dones, eval_infos = self.eval_envs.step(eval_actions_env)
+                eval_obs, eval_rewards, eval_dones, eval_infos = self.eval_envs.step(eval_actions)
                 
                 eval_rewards = eval_rewards.reshape([-1, self.num_agents])
                 if finished is None:
@@ -213,18 +169,18 @@ class DroneRunner(Runner):
 
                 if finished.all() == True:
                     break
-        
+            
             # (step, rollout, ) -> (rollout, )
-            episode_score = np.array(eval_episode_rewards).sum(axis=0)
-            win += np.sum(episode_score==1)
-            loss += np.sum(episode_score==-1)
-            assert episode_score.shape[0] == self.eval_episodes / n_iters, f"{episode_score.shape[0]}!={self.eval_episodes}"
-        
+            eval_reward += np.sum(eval_episode_rewards)
+            for info in eval_infos:
+                eval_success += np.sum([_["success"] for _ in info])
+
         eval_env_infos = {
-            'win_rate': win/self.eval_episodes
+            "eval_average_reward": eval_reward / self.eval_episodes,
+            "eval_success_rate": eval_success / self.eval_episodes
         }
 
-        print(f"eval win/loss/total: {win}/{loss}/{self.eval_episodes}, win rate: {win/self.eval_episodes}")
+        print(eval_env_infos)
 
         if not self.all_args.eval_only: self.log(eval_env_infos, total_num_steps)
     

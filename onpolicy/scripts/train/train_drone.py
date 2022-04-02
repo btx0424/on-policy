@@ -9,22 +9,26 @@ from onpolicy.envs.env_wrappers import \
     SubprocVecEnv, DummyVecEnv, ShareSubprocVecEnv, ShareDummyVecEnv
 from onpolicy.envs.drone import make_drone_env
 
-def make_env(all_args, eval=False):
+def make_env(all_args, n_rollout_threads=1, is_eval=False):
     def get_env_fn(rank):
         def init_env():
             env_name = all_args.scenario_name
-            env = make_drone_env(env_name, vars(all_args))
+            config = vars(all_args)
+            if is_eval: 
+                config["debug"] = True
+                config["record"] = True
+            env = make_drone_env(env_name, config)
             env.seed(all_args.seed + rank * 1000)
             return env
         return init_env
-    if all_args.n_rollout_threads == 1:
+    if n_rollout_threads == 1:
         return DummyVecEnv([get_env_fn(0)])
     else:
-        return SubprocVecEnv([get_env_fn(i) for i in range(all_args.n_rollout_threads)])
+        return SubprocVecEnv([get_env_fn(i) for i in range(n_rollout_threads)])
 
 def parse_args(args, parser):
     parser.add_argument('--scenario_name', type=str,
-                        default='flock', help="Which scenario to run on")
+                        default='navigation', help="Which scenario to run on")
     parser.add_argument('--num_agents', type=int,
                         default=2, help="number of players")
 
@@ -99,8 +103,8 @@ def main(args):
     np.random.seed(all_args.seed)
 
     # env init
-    envs = make_env(all_args)
-    eval_envs = make_env(all_args, eval=True) if all_args.use_eval else None
+    envs = make_env(all_args, all_args.n_rollout_threads)
+    eval_envs = make_env(all_args, all_args.n_eval_rollout_threads, is_eval=True) if all_args.use_eval else None
     num_agents = all_args.num_agents
 
     config = {

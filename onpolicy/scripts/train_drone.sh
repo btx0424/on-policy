@@ -13,8 +13,10 @@ do
     CUDA_VISIBLE_DEVICES=0 python train/train_drone.py \
         --use_popart --env_name ${env} --algorithm_name ${algo} \
         --experiment_name ${exp} --scenario_name ${scenario} --num_agents ${num_agents} \
-        --num_landmarks ${num_landmarks} --seed ${seed} --n_training_threads 1 \
-        --n_rollout_threads 24 --num_mini_batch 1 --episode_length 600 \
-        --num_env_steps 20000000 --ppo_epoch 10 --use_ReLU --gain 0.01 --lr 5e-4 \
-        --critic_lr 5e-4 --eps_start 0
+        --seed ${seed} --n_training_threads 1 \
+        --n_rollout_threads 10 --num_mini_batch 1 --episode_length 1200 \
+        --num_env_steps 50000000 --ppo_epoch 10 --use_ReLU --gain 0.01 --lr 5e-4 \
+        --critic_lr 5e-4 --eps_start 0 --save_interval 100 \
+        --use_eval --eval_interval 20 --eval_episodes 10 --n_eval_rollout_threads 5 \
+        --model_dir /home/xbt/0424/on-policy/onpolicy/scripts/results/drone/navigation/rmappo/check/run1/models
 done

@@ -7,16 +7,18 @@ from gym_pybullet_drones.envs.single_agent_rl.BaseSingleAgentAviary import Actio
 
 class NavigationAviary(BaseMultiagentAviary):
     def __init__(self, config):
-        num_drones = config.get("num_agents", 2)
-        act = config.get("act", "rpm")
-        act = ActionType(act)
+        act = ActionType(config.get("act", "rpm"))
         self.debug = config.get("debug", False)
-        super().__init__(num_drones=num_drones, act=act, gui=self.debug)
+        super().__init__(
+            num_drones=config.get("num_agents", 2), 
+            act=act, 
+            gui=config.get("gui", False),
+            record=self.debug)
 
         obs_space = self.observation_space
         num_drones = self.NUM_DRONES
         
-        # state obs_shape: (n_drones, n_drones*(state_dim+1))
+        # state obs_shape: (n_drones, state_dim+3))
         low = np.concatenate([obs_space[0].low, -np.inf*np.ones(3)])
         high = np.concatenate([obs_space[0].high, np.inf*np.ones(3)])
         
@@ -31,17 +33,18 @@ class NavigationAviary(BaseMultiagentAviary):
         obs = super().reset()
         self.distance = np.linalg.norm(self.pos - self.goals, axis=1) 
         self.distance_max = self.distance
+        self.success = np.zeros(self.NUM_DRONES, bool)
 
         if self.debug: 
             p.removeAllUserDebugItems()
-            self.line_ids = [p.addUserDebugLine(pos, goal, [1., 0., 0.]) for pos, goal in zip(self.pos, self.goals)]
+            self.line_ids = [p.addUserDebugLine(pos, goal, [1., 0., 0.], lineWidth=5.) for pos, goal in zip(self.pos, self.goals)]
             
         return obs
     
     def step(self, actions):
         if self.debug:
             for pos, goal, line_id in zip(self.pos, self.goals, self.line_ids):
-                p.addUserDebugLine(pos, goal, [1., 0., 0.], replaceItemUniqueId=line_id)
+                p.addUserDebugLine(pos, goal, [1., 0., 0.], lineWidth=5., replaceItemUniqueId=line_id)
         
         actions = {i:actions[i] for i in range(self.NUM_DRONES)}
         obs, rewards, done, info = super().step(actions)
@@ -49,7 +52,6 @@ class NavigationAviary(BaseMultiagentAviary):
         done    = [done[i] for i in range(self.NUM_DRONES)]
         return obs, rewards, done, info
         
-
     def _computeObs(self):
         obs = super()._computeObs()
         obs = np.array([obs[i] for i in range(self.NUM_DRONES)])
@@ -61,14 +63,15 @@ class NavigationAviary(BaseMultiagentAviary):
         distance_reduction = self.distance - distance
         reward = distance_reduction / self.distance_max
         self.distance = distance
-        return reward
+        self.success |= distance < 0.1
+        return reward # - distance / self.distance_max
     
     def _computeDone(self):
         bool_val = True if self.step_counter/self.SIM_FREQ > self.EPISODE_LEN_SEC else False
         return [bool_val for _ in range(self.NUM_DRONES)]
     
     def _computeInfo(self):
-        return [{} for _ in range(self.NUM_DRONES)]
+        return [{"success":self.success[i]} for i in range(self.NUM_DRONES)]
         
     def _clipAndNormalizeState(self,
                                state
@@ -129,9 +132,7 @@ class NavigationAviary(BaseMultiagentAviary):
                                       ]).reshape(20,)
 
         return norm_and_clipped
-    
-    ################################################################################
-    
+        
     def _clipAndNormalizeStateWarning(self,
                                       state,
                                       clipped_pos_xy,

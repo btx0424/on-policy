@@ -19,7 +19,10 @@ def make_drone_env(name:str, config: dict):
     if env_class in NATIVE:
         class CoopAviaryEnv(env_class):
             def __init__(self):
-                super().__init__(num_drones=config.get("num_agents", 2))
+                super().__init__(
+                    num_drones=config.get("num_agents", 2),
+                    record=config.get("record", False)
+                )
                 obs_space = self.observation_space
                 num_drones = self.NUM_DRONES
                 
