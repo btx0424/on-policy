@@ -31,6 +31,7 @@ def parse_args(args, parser):
                         default='navigation', help="Which scenario to run on")
     parser.add_argument('--num_agents', type=int,
                         default=2, help="number of players")
+    parser.add_argument('--eval_record', default=False, action="store_true")
 
     all_args = parser.parse_known_args(args)[0]
     return all_args

@@ -36,15 +36,20 @@ class NavigationAviary(BaseMultiagentAviary):
         self.success = np.zeros(self.NUM_DRONES, bool)
 
         if self.debug: 
+            # goal indicator
+            for i in range(self.NUM_DRONES):
+                vshape_id = p.createVisualShape(p.GEOM_SPHERE, radius=0.03, rgbaColor=[1., 0., 0., 1.])
+                p.createMultiBody(baseMass=0, baseVisualShapeIndex=vshape_id, basePosition=self.goals[i])
+
             p.removeAllUserDebugItems()
-            self.line_ids = [p.addUserDebugLine(pos, goal, [1., 0., 0.], lineWidth=5.) for pos, goal in zip(self.pos, self.goals)]
-            
+            self.line_ids = [p.addUserDebugLine(pos, goal, [1., 0., 0.], lineWidth=2.) for pos, goal in zip(self.pos, self.goals)]
+
         return obs
     
     def step(self, actions):
         if self.debug:
             for pos, goal, line_id in zip(self.pos, self.goals, self.line_ids):
-                p.addUserDebugLine(pos, goal, [1., 0., 0.], lineWidth=5., replaceItemUniqueId=line_id)
+                p.addUserDebugLine(pos, goal, [1., 0., 0.], lineWidth=2., replaceItemUniqueId=line_id)
         
         actions = {i:actions[i] for i in range(self.NUM_DRONES)}
         obs, rewards, done, info = super().step(actions)
@@ -89,6 +94,7 @@ class NavigationAviary(BaseMultiagentAviary):
             (20,)-shaped array of floats containing the normalized state of a single drone.
 
         """
+        return state
         MAX_LIN_VEL_XY = 3 
         MAX_LIN_VEL_Z = 1
 
